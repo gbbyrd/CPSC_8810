@@ -9,6 +9,8 @@ import statistics
 from abc import abstractmethod
 from typing import Dict, List, Callable, Optional
 
+import numpy as np
+
 
 def hello_linear_classifier():
     """
@@ -345,7 +347,6 @@ def train_linear_classifier(
     # assume y takes values 0...K-1 where K is number of classes
     num_train, dim = X.shape
     if W is None:
-        # lazily initialize W
         num_classes = torch.max(y) + 1
         W = 0.000001 * torch.randn(
             dim, num_classes, device=X.device, dtype=X.dtype
@@ -370,7 +371,7 @@ def train_linear_classifier(
         #########################################################################
         # Replace "pass" statement with your code
 
-        W -= learning_rate * grad
+        W -= grad * learning_rate
 
         #########################################################################
         #                       END OF YOUR CODE                                #
@@ -410,7 +411,7 @@ def predict_linear_classifier(W: torch.Tensor, X: torch.Tensor):
     return y_pred
 
 
-def svm_get_search_params(test1, test2):
+def svm_get_search_params():
     """
     Return candidate hyperparameters for the SVM model. You should provide
     at least two param for each, and total grid search combinations
@@ -429,28 +430,9 @@ def svm_get_search_params(test1, test2):
     # TODO:   add your own hyper parameter lists.                             #
     ###########################################################################
     # Replace "pass" statement with your code
-    learning_rates = [3e-3, 5e-3, 8e-3, 9.5e-3, 1e-2, 2e-2, 3e-2]
-    if test1 == 0:
-        learning_rates = [3e-3, 5e-3, 8e-3, 9.5e-3, 1e-2, 2e-2, 3e-2]
-    elif test1 == 1:
-        learning_rates = [3e-2, 5e-2, 8e-4, 9.5e-1, 1e-1, 2e-1, 3e-1]
-    elif test1 == 2:
-        learning_rates = [6e-2, 6.3e-2, 6.2e-4, 3.5e-3, 1.3e-3, 2.3e-1]
-    elif test1 == 3:
-        learning_rates = [2.5, 5]
-    elif test1 == 4:
-        learning_rates = [1e-2, 3e-2, 4e-2]
-    if test2 == 0:
-        regularization_strengths = [1e-1, 3e-1, 5e-1]
-    elif test2 == 1:
-        regularization_strengths = [7e-1, 9e-1, 1e0]
-    elif test2 == 2:
-        regularization_strengths = [2e0, 3e0, 1e-5]
-    elif test2 == 3:
-        regularization_strengths = [2.5, 5, 3.5e-1]
-    elif test2 == 4:
-        regularization_strengths = [1e-2, 3e-2, 4e-2]
 
+    learning_rates = [7e-3, 9e-3, 1e-2, 2e-2, 3e-2]
+    regularization_strengths = [1e-1, 3e-1, 5e-1, 7e-1]
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
@@ -508,7 +490,7 @@ def test_one_param_set(
     X_val = data_dict['X_val']
     y_val = data_dict['y_val']
 
-    cls.train(X_train, y_train, learning_rate=lr, reg = reg, num_iters = 100, verbose = False)
+    cls.train(X_train, y_train, learning_rate=lr, reg = reg, num_iters = num_iters, verbose = False)
     y_train_pred = cls.predict(X_train)
     y_val_pred = cls.predict(X_val)
     train_acc = (y_train == y_train_pred).float().mean().item()
@@ -559,7 +541,43 @@ def softmax_loss_naive(
     # regularization!                                                           #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    num_classes = W.shape[1]
+
+    num_train = X.shape[0]
+
+    loss = 0.0
+
+    for i in range(num_train):
+        scores = W.t().mv(X[i])
+        
+
+        scores -= torch.max(scores)
+
+        each = torch.exp(scores)
+
+        expsum = torch.sum(torch.exp(scores))   
+
+        prob = each / expsum
+
+        loss += -torch.log(prob[y[i]])
+
+        for j in range(num_classes):
+
+            if j == y[i]:
+                continue
+            dW[:, j] += torch.exp(scores[j]) / expsum * X[i]
+        
+        
+        
+        dW[:, y[i]] += -1 * (expsum - each[y[i]])/expsum * X[i]
+        
+
+    loss /= num_train
+
+    # reg
+    loss += reg * torch.sum(W * W)
+    dW = dW.div(num_train)
+    dW = dW.add(2 * reg * W)
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################
@@ -589,7 +607,27 @@ def softmax_loss_vectorized(
     # regularization!                                                           #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    num_train = X.shape[0]
+
+    scores = X.mm(W)
+
+    scores -= torch.max(scores)
+    
+    allexp = torch.exp(scores)
+
+    sumup = torch.sum(allexp, dim = 1)
+
+    correct = allexp[torch.arange(num_train), y]
+
+    prob = correct / sumup 
+    
+    loss = -torch.sum(torch.log(prob))/num_train + reg * torch.sum(W * W)
+    
+    factor = torch.div(allexp, sumup.view(-1, 1))
+
+    factor[torch.arange(num_train), y] = -1 * (sumup - correct) / sumup
+    
+    dW = (X.t()).mm(factor) / num_train + 2 * reg * W
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################
@@ -618,7 +656,11 @@ def softmax_get_search_params():
     # classifier.                                                             #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+
+    learning_rates = [7e-2, 9e-2, 1e-1, 2e-1]
+
+    regularization_strengths = [7e-3, 1e-2, 3e-2, 5e-2]
+
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
