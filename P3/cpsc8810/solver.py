@@ -111,7 +111,7 @@ class Solver(object):
         self.num_val_samples = kwargs.pop("num_val_samples", None)
 
         self.device = kwargs.pop("device", "cpu")
-
+        print(f'device: {self.device}')
         self.checkpoint_name = kwargs.pop("checkpoint_name", None)
         self.print_every = kwargs.pop("print_every", 10)
         self.print_acc_every = kwargs.pop("print_acc_every", 1)
